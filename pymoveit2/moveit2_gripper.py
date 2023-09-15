@@ -128,13 +128,16 @@ class MoveIt2Gripper(MoveIt2):
         Open the gripper.
         - `skip_if_noop` - No action will be performed if the gripper is already open.
         """
-
-        if skip_if_noop and self.is_open:
-            return
+        # self.is_open = False
+        # if skip_if_noop and self.is_open:
+        #     print("skip")
+        #     return
 
         if self.__skip_planning:
+            print("if")
             self.__open_without_planning()
         else:
+            print("else")
             self.move_to_configuration(
                 joint_positions=self.__open_gripper_joint_positions
             )
@@ -202,6 +205,7 @@ class MoveIt2Gripper(MoveIt2):
         """
 
         joint_state = self.joint_state
+        # print(joint_state)
 
         # Assume the gripper is open if there are no joint state readings yet
         if joint_state is None:
@@ -225,7 +229,6 @@ class MoveIt2Gripper(MoveIt2):
                 > self.__open_tolerance[local_joint_index]
             ):
                 return False
-
         return True
 
     @property

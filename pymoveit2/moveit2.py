@@ -239,7 +239,7 @@ class MoveIt2:
         Plan and execute motion based on previously set goals. Optional arguments can be
         passed in to internally use `set_pose_goal()` to define a goal during the call.
         """
-
+        # print("hello")
         if self.__execute_via_moveit:
             if self.__ignore_new_calls_while_executing and self.__is_executing:
                 self._node.get_logger().warn(
@@ -247,7 +247,7 @@ class MoveIt2:
                 )
                 return
             self.__is_motion_requested = True
-
+            # print("if1")
             # Set goal
             self.set_pose_goal(
                 position=position,
@@ -270,6 +270,7 @@ class MoveIt2:
             self.clear_goal_constraints()
 
         else:
+            # print("else")
             # Plan via MoveIt 2 and then execute directly with the controller
             self.execute(
                 self.plan(
@@ -361,7 +362,7 @@ class MoveIt2:
         duration, `None` is returned. To plan from the different position than the current
         one, optional argument `start_` can be defined.
         """
-
+        # print("inside of plan")
         if position is not None:
             self.set_position_goal(
                 position=position,
@@ -410,14 +411,16 @@ class MoveIt2:
         else:
             if self.__execute_via_moveit:
                 # Use action client
+                # print("action")
                 joint_trajectory = self._send_goal_move_action_plan_only()
             else:
                 # Use service
+                # print("service")
                 joint_trajectory = self._plan_kinematic_path()
 
         # Clear all previous goal constrains
         self.clear_goal_constraints()
-
+        # print(joint_trajectory)
         return joint_trajectory
 
     def execute(self, joint_trajectory: JointTrajectory):
@@ -944,7 +947,7 @@ class MoveIt2:
         self.__kinematic_path_request.motion_plan_request = (
             self.__move_action_goal.request
         )
-
+        # print(self.__move_action_goal.request)
         stamp = self._node.get_clock().now().to_msg()
         self.__kinematic_path_request.motion_plan_request.workspace_parameters.header.stamp = (
             stamp
@@ -1186,7 +1189,9 @@ class MoveIt2:
         move_action_goal.request.allowed_planning_time = 0.5
         move_action_goal.request.max_velocity_scaling_factor = 0.0
         move_action_goal.request.max_acceleration_scaling_factor = 0.0
-        move_action_goal.request.cartesian_speed_end_effector_link = end_effector
+##########################
+        # move_action_goal.request.cartesian_speed_end_effector_link = end_effector
+##########################
         move_action_goal.request.max_cartesian_speed = 0.0
 
         # move_action_goal.planning_options.planning_scene_diff = "Ignored"
