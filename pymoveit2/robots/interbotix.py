@@ -4,7 +4,7 @@ MOVE_GROUP_ARM: str = "interbotix_arm"
 MOVE_GROUP_GRIPPER: str = "interbotix_gripper"
 
 OPEN_GRIPPER_JOINT_POSITIONS: List[float] = [0.037, -0.037]
-CLOSED_GRIPPER_JOINT_POSITIONS: List[float] = [0.015, -0.015]
+CLOSED_GRIPPER_JOINT_POSITIONS: List[float] = [0.02, -0.02]
 
 robot_prefix = "wx200/"
 
