@@ -13,6 +13,8 @@ from moveit_msgs.msg import (
     MoveItErrorCodes,
     OrientationConstraint,
     PositionConstraint,
+    TrajectoryConstraints,
+
 )
 from moveit_msgs.srv import (
     GetCartesianPath,
@@ -68,7 +70,6 @@ class MoveIt2:
           - `callback_group` - Optional callback group to use for ROS 2 communication (topics/services/actions)
           - `follow_joint_trajectory_action_name` - Name of the action server for the controller
         """
-
         self._node = node
         self._callback_group = callback_group
 
@@ -242,6 +243,7 @@ class MoveIt2:
         weight_position: float = 1.0,
         cartesian: bool = False,
         weight_orientation: float = 1.0,
+        constrain_path: bool = False,
     ):
         """
         Plan and execute motion based on previously set goals. Optional arguments can be
@@ -261,6 +263,8 @@ class MoveIt2:
                 pose=pose,
             )
         else:
+            print("else1")
+
             if not isinstance(position, Point):
                 position = Point(
                     x=float(position[0]), y=float(position[1]), z=float(position[2])
@@ -289,7 +293,7 @@ class MoveIt2:
                 )
                 return
             self.__is_motion_requested = True
-
+            print("self.__execute_via_moveit")
             # Set goal
             self.set_pose_goal(
                 position=pose_stamped.pose.position,
@@ -300,18 +304,24 @@ class MoveIt2:
                 tolerance_orientation=tolerance_orientation,
                 weight_position=weight_position,
                 weight_orientation=weight_orientation,
+                constrain_path=constrain_path,
             )
+            print("out of set goal")
             # Define starting state as the current state
             if self.joint_state is not None:
                 self.__move_action_goal.request.start_state.joint_state = (
                     self.joint_state
                 )
+            
             # Send to goal to the server (async) - both planning and execution
             self._send_goal_async_move_action()
+            print("async done")
             # Clear all previous goal constrains
             self.clear_goal_constraints()
-
+            self.clear_path_constraints()
+            print("path cleared")
         else:
+            print("else")
             # Plan via MoveIt 2 and then execute directly with the controller
             self.execute(
                 self.plan(
@@ -324,6 +334,7 @@ class MoveIt2:
                     weight_position=weight_position,
                     weight_orientation=weight_orientation,
                     cartesian=cartesian,
+                    constrain_path=constrain_path,
                 )
             )
 
@@ -363,6 +374,7 @@ class MoveIt2:
             self._send_goal_async_move_action()
             # Clear all previous goal constrains
             self.clear_goal_constraints()
+            self.clear_path_constraints()
 
         else:
             # Plan via MoveIt 2 and then execute directly with the controller
@@ -394,6 +406,7 @@ class MoveIt2:
         weight_joint_position: float = 1.0,
         start_joint_state: Optional[Union[JointState, List[float]]] = None,
         cartesian: bool = False,
+        constrain_path: bool = False,
     ) -> Optional[JointTrajectory]:
         """
         Plan motion based on previously set goals. Optional arguments can be passed in to
@@ -417,7 +430,7 @@ class MoveIt2:
                     ),
                     pose=pose,
                 )
-
+            print("\n\nhello\n\n")
             self.set_position_goal(
                 position=pose_stamped.pose.position,
                 frame_id=pose_stamped.header.frame_id,
@@ -432,6 +445,18 @@ class MoveIt2:
                 tolerance=tolerance_orientation,
                 weight=weight_orientation,
             )
+            if constrain_path == True:
+                self.set_orientation_path_constraint(
+                    quat_xyzw=pose_stamped.pose.orientation,
+                    frame_id=pose_stamped.header.frame_id,
+                    target_link=target_link,
+                    tolerance=tolerance_orientation,
+                    weight=weight_orientation,
+                )
+                print("hit that if")
+###################################################################
+
+###################################################################
         else:
             if position is not None:
                 if not isinstance(position, Point):
@@ -463,7 +488,58 @@ class MoveIt2:
                     tolerance=tolerance_orientation,
                     weight=weight_orientation,
                 )
+##################################################
+            if constrain_path == True:
+                if position is not None:
+                    if not isinstance(position, Point):
+                        position = Point(
+                            x=float(position[0]), y=float(position[1]), z=float(position[2])
+                        )
 
+                    self.set_position_goal(
+                        position=position,
+                        frame_id=frame_id,
+                        target_link=target_link,
+                        tolerance=tolerance_position,
+                        weight=weight_position,
+                    )
+                # if position is not None:
+                #     if not isinstance(position, Point):
+                #         position = Point(
+                #             x=float(position[0]), y=float(position[1]), z=float(position[2])
+                #         )
+
+                #     self.set_position_goal(
+                #         position=position,
+                #         frame_id=frame_id,
+                #         target_link=target_link,
+                #         tolerance=tolerance_position,
+                #         weight=weight_position,
+                #     )
+                if quat_xyzw is not None:
+                    if not isinstance(quat_xyzw, Quaternion):
+                        quat_xyzw = Quaternion(
+                            x=float(quat_xyzw[0]),
+                            y=float(quat_xyzw[1]),
+                            z=float(quat_xyzw[2]),
+                            w=float(quat_xyzw[3]),
+                        )
+
+                    self.set_orientation_goal(
+                        quat_xyzw=quat_xyzw,
+                        frame_id=frame_id,
+                        target_link=target_link,
+                        tolerance=tolerance_orientation,
+                        weight=weight_orientation,
+                    )
+                    self.set_orientation_path_constraint(
+                        quat_xyzw=quat_xyzw,
+                        frame_id=frame_id,
+                        target_link=target_link,
+                        tolerance=tolerance_orientation,
+                        weight=weight_orientation,
+                    )
+##################################################
         if joint_positions is not None:
             self.set_joint_goal(
                 joint_positions=joint_positions,
@@ -505,6 +581,7 @@ class MoveIt2:
 
         # Clear all previous goal constrains
         self.clear_goal_constraints()
+        self.clear_path_constraints()
 
         return joint_trajectory
 
@@ -585,11 +662,12 @@ class MoveIt2:
         tolerance_orientation: float = 0.001,
         weight_position: float = 1.0,
         weight_orientation: float = 1.0,
+        constrain_path: bool = False,
     ):
         """
         This is direct combination of `set_position_goal()` and `set_orientation_goal()`.
         """
-
+        print("set_pose_goal")
         if (pose is None) and (position is None or quat_xyzw is None):
             raise ValueError(
                 "Either `pose` or `position` and `quat_xyzw` must be specified!"
@@ -643,6 +721,16 @@ class MoveIt2:
             tolerance=tolerance_orientation,
             weight=weight_orientation,
         )
+        print("set path constraint_goal")
+        if constrain_path==True:
+            self.set_orientation_path_constraint(
+                quat_xyzw=quat_xyzw,
+                frame_id=frame_id,
+                target_link=target_link,
+                tolerance=tolerance_orientation,
+                weight=weight_orientation,
+            )
+        print("got passed")
 
     def set_position_goal(
         self,
@@ -696,7 +784,107 @@ class MoveIt2:
         self.__move_action_goal.request.goal_constraints[
             -1
         ].position_constraints.append(constraint)
+###########################################
+    def set_position_constrained_path(
+        self,
+        position: Union[Point, Tuple[float, float, float]],
+        frame_id: Optional[str] = None,
+        target_link: Optional[str] = None,
+        tolerance: float = 0.001,
+        weight: float = 1.0,
+    ):
+        """
+        Set Cartesian position goal of `target_link` with respect to `frame_id`.
+          - `frame_id` defaults to the base link
+          - `target_link` defaults to end effector
+        """
 
+        # Create new position constraint
+        constraint = PositionConstraint()
+
+        # Define reference frame and target link
+        constraint.header.frame_id = (
+            frame_id if frame_id is not None else self.__base_link_name
+        )
+        constraint.link_name = (
+            target_link if target_link is not None else self.__end_effector_name
+        )
+
+        # Define target position
+        constraint.constraint_region.primitive_poses.append(Pose())
+        if isinstance(position, Point):
+            constraint.constraint_region.primitive_poses[0].position = position
+        else:
+            constraint.constraint_region.primitive_poses[0].position.x = float(
+                position[0]
+            )
+            constraint.constraint_region.primitive_poses[0].position.y = float(
+                position[1]
+            )
+            constraint.constraint_region.primitive_poses[0].position.z = float(
+                position[2]
+            )
+
+        # Define goal region as a sphere with radius equal to the tolerance
+        constraint.constraint_region.primitives.append(SolidPrimitive())
+        constraint.constraint_region.primitives[0].type = 2  # Sphere
+        constraint.constraint_region.primitives[0].dimensions = [tolerance]
+
+        # Set weight of the constraint
+        constraint.weight = weight
+
+        # Append to other constraints
+        self.__move_action_goal.request.path_constraints[
+            -1
+        ].position_constraints.append(constraint)
+###########################################
+    def set_orientation_path_constraint(
+        self,
+        quat_xyzw: Union[Quaternion, Tuple[float, float, float, float]],
+        frame_id: Optional[str] = None,
+        target_link: Optional[str] = None,
+        tolerance: float = 0.001,
+        weight: float = 1.0,
+    ):
+        tolerance = 50.0
+        """
+        Set Cartesian orientation goal of `target_link` with respect to `frame_id`.
+          - `frame_id` defaults to the base link
+          - `target_link` defaults to end effector
+        """
+        print('\n\nhello\n\n')
+        # Create new position constraint
+        constraint = OrientationConstraint()
+
+        # Define reference frame and target link
+        constraint.header.frame_id = (
+            frame_id if frame_id is not None else self.__base_link_name
+        )
+        constraint.link_name = (
+            target_link if target_link is not None else self.__end_effector_name
+        )
+
+        # Define target orientation
+        if isinstance(quat_xyzw, Quaternion):
+            constraint.orientation = quat_xyzw
+        else:
+            constraint.orientation.x = float(quat_xyzw[0])
+            constraint.orientation.y = float(quat_xyzw[1])
+            constraint.orientation.z = float(quat_xyzw[2])
+            constraint.orientation.w = float(quat_xyzw[3])
+
+        # Define tolerances
+        constraint.absolute_x_axis_tolerance = tolerance
+        constraint.absolute_y_axis_tolerance = tolerance
+        constraint.absolute_z_axis_tolerance = tolerance
+
+        # Set weight of the constraint
+        constraint.weight = weight
+        print("broken")
+        # Append to other constraints
+        self.__move_action_goal.request.path_constraints.orientation_constraints.append(constraint)
+        print("past broken")
+##########################################
     def set_orientation_goal(
         self,
         quat_xyzw: Union[Quaternion, Tuple[float, float, float, float]],
@@ -799,7 +987,24 @@ class MoveIt2:
         """
 
         self.__move_action_goal.request.goal_constraints.append(Constraints())
+################################################################
+    def clear_path_constraints(self):
+        """
+        Clear all path constraints that were previously set.
+        Note that this function is called automatically after each `plan_kinematic_path()`.
+        """
 
+        self.__move_action_goal.request.path_constraints = Constraints()
+
+    def create_new_path_constraint(self):
+        """
+        Create a new set of path constraints that will be set together with the request. Each
+        subsequent setting of goals with `set_joint_goal()`, `set_pose_goal()` and others will be
+        added under this newly created set of constraints.
+        """
+
+        self.__move_action_goal.request.path_constraints.append(Constraints())
+################################################################
     def compute_fk(
         self,
         joint_state: Optional[Union[JointState, List[float]]] = None,
@@ -1584,7 +1789,7 @@ class MoveIt2:
         move_action_goal.request.workspace_parameters.max_corner.z = 1.0
         # move_action_goal.request.start_state = "Set during request"
         move_action_goal.request.goal_constraints = [Constraints()]
-        # move_action_goal.request.path_constraints = "Ignored"
+        move_action_goal.request.path_constraints = Constraints()
         # move_action_goal.request.trajectory_constraints = "Ignored"
         # move_action_goal.request.reference_trajectories = "Ignored"
         # move_action_goal.request.pipeline_id = "Ignored"
