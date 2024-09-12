@@ -2,7 +2,7 @@ import copy
 import threading
 from enum import Enum
 from typing import Any, List, Optional, Tuple, Union
-
+from threading import RLock
 import numpy as np
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
@@ -40,6 +40,35 @@ from sensor_msgs.msg import JointState
 from shape_msgs.msg import Mesh, MeshTriangle, SolidPrimitive
 from std_msgs.msg import Header, String
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+
+class PatchRclpyIssue1123(ActionClient):
+    """Patch for rclpy issue 1123.
+    As per: https://github.com/ros2/rclpy/issues/1123#issuecomment-1551836411
+    """
+
+    _lock: RLock = None  # type: ignore
+
+    @property
+    def _cpp_client_handle_lock(self) -> RLock:
+        if self._lock is None:
+            self._lock = RLock()
+        return self._lock
+
+    async def execute(self, *args: Any, **kwargs: Any) -> None:
+        with self._cpp_client_handle_lock:
+            return await super().execute(*args, **kwargs)  # type: ignore
+
+    def send_goal_async(self, *args: Any, **kwargs: Any) -> Future:
+        with self._cpp_client_handle_lock:
+            return super().send_goal_async(*args, **kwargs)
+
+    def _cancel_goal_async(self, *args: Any, **kwargs: Any) -> Future:
+        with self._cpp_client_handle_lock:
+            return super()._cancel_goal_async(*args, **kwargs)
+
+    def _get_result_async(self, *args: Any, **kwargs: Any) -> Future:
+        with self._cpp_client_handle_lock:
+            return super()._get_result_async(*args, **kwargs)
 
 
 class MoveIt2State(Enum):
@@ -124,7 +153,7 @@ class MoveIt2:
         )
 
         # Create action client for move action
-        self.__move_action_client = ActionClient(
+        self.__move_action_client = PatchRclpyIssue1123(
             node=self._node,
             action_type=MoveGroup,
             action_name="move_action",
@@ -190,7 +219,7 @@ class MoveIt2:
         self.__cartesian_path_request = GetCartesianPath.Request()
 
         # Create action client for trajectory execution
-        self._execute_trajectory_action_client = ActionClient(
+        self._execute_trajectory_action_client = PatchRclpyIssue1123(
             node=self._node,
             action_type=ExecuteTrajectory,
             action_name="execute_trajectory",

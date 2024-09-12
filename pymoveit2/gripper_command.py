@@ -1,6 +1,8 @@
 import threading
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any
 
+from threading import RLock
+from rclpy.task import Future
 from action_msgs.msg import GoalStatus
 from control_msgs.action import GripperCommand as GripperCommandAction
 from rclpy.action import ActionClient
@@ -13,6 +15,35 @@ from rclpy.qos import (
     QoSReliabilityPolicy,
 )
 from sensor_msgs.msg import JointState
+
+class PatchRclpyIssue1123(ActionClient):
+    """Patch for rclpy issue 1123.
+    As per: https://github.com/ros2/rclpy/issues/1123#issuecomment-1551836411
+    """
+
+    _lock: RLock = None  # type: ignore
+
+    @property
+    def _cpp_client_handle_lock(self) -> RLock:
+        if self._lock is None:
+            self._lock = RLock()
+        return self._lock
+
+    async def execute(self, *args: Any, **kwargs: Any) -> None:
+        with self._cpp_client_handle_lock:
+            return await super().execute(*args, **kwargs)  # type: ignore
+
+    def send_goal_async(self, *args: Any, **kwargs: Any) -> Future:
+        with self._cpp_client_handle_lock:
+            return super().send_goal_async(*args, **kwargs)
+
+    def _cancel_goal_async(self, *args: Any, **kwargs: Any) -> Future:
+        with self._cpp_client_handle_lock:
+            return super()._cancel_goal_async(*args, **kwargs)
+
+    def _get_result_async(self, *args: Any, **kwargs: Any) -> Future:
+        with self._cpp_client_handle_lock:
+            return super()._get_result_async(*args, **kwargs)
 
 
 class GripperCommand:
@@ -62,7 +93,7 @@ class GripperCommand:
         )
 
         # Create action client for move action
-        self.__gripper_command_action_client = ActionClient(
+        self.__gripper_command_action_client = PatchRclpyIssue1123(
             node=self._node,
             action_type=GripperCommandAction,
             action_name=gripper_command_action_name,
