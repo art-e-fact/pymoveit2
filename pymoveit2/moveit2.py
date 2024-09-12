@@ -36,6 +36,7 @@ from rclpy.qos import (
     QoSReliabilityPolicy,
 )
 from rclpy.task import Future
+from threading import RLock
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import Mesh, MeshTriangle, SolidPrimitive
 from std_msgs.msg import Header, String
